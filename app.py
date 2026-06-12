@@ -98,7 +98,7 @@ with st.sidebar:
 st.markdown(
 """
 <div class='main-title'>
-🤖 YM Bot
+ YM Bot
 </div>
 
 <div class='sub-title'>
@@ -109,7 +109,7 @@ unsafe_allow_html=True
 )
 
 st.info("""
-👋 Welcome to YM Bot!
+ Welcome to YM Bot!
 
 You can ask me anything about:
 
@@ -143,7 +143,7 @@ for message in st.session_state.messages:
 # Chat Input
 # ----------------------------
 
-prompt=st.chat_input("💬 Message YM Bot...")
+prompt=st.chat_input(" Message YM Bot...")
 
 if prompt:
 
@@ -158,7 +158,7 @@ if prompt:
 
         st.write(prompt)
 
-    with st.spinner("🤖 YM Bot is thinking..."):
+    with st.spinner(" YM Bot is thinking..."):
 
         response=client.chat.completions.create(
 
@@ -193,7 +193,7 @@ st.markdown(
 """
 <center>
 
-🚀 YM Bot | Made with ❤️ by Yoshitha
+YM Bot | done by Yoshitha
 
 </center>
 """,
