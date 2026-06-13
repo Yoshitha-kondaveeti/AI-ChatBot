@@ -72,4 +72,4 @@ def delete_chat(chat_id):
         (chat_id,)
     )
 
-    conn
+    conn.commit()
