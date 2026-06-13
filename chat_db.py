@@ -1,7 +1,6 @@
-
-
 from database import conn, cursor
 import uuid
+
 
 # Create a new chat ID
 def create_chat():
