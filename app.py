@@ -106,11 +106,14 @@ if not st.session_state.logged_in:
 
                 st.session_state.username = user[1]
 
-                # Create a fresh chat if needed
-                st.session_state.chat_id = create_chat()
+                # Create first chat only if needed
+                if "chat_id" not in st.session_state:
+                    st.session_state.chat_id = create_chat()
 
-                # Load current chat
-                st.session_state.messages = []
+                # Load existing chat
+                st.session_state.messages = load_chat(
+                    st.session_state.chat_id
+                )
 
                 st.rerun()
 
@@ -175,10 +178,7 @@ else:
     st.title("🤖 YM Bot")
 
     st.caption("Your Smart AI Assistant")
-        # -----------------------------
-    # Display Previous Messages
-    # -----------------------------
-    # ---------------------------------
+          # ---------------------------------
     # Display Previous Messages
     # ---------------------------------
 
