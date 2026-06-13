@@ -1,201 +1,79 @@
-import os
 import streamlit as st
-from dotenv import load_dotenv
-from groq import Groq
+from auth import signup, login
 
-# ----------------------------
-# Load API Key
-# ----------------------------
-load_dotenv()
+st.set_page_config(page_title="YM Bot", page_icon="🤖")
 
-client = Groq(
-    api_key=os.getenv("GROQ_API_KEY")
+st.title("🤖 YM Bot")
+
+menu = st.sidebar.selectbox(
+    "Menu",
+    ["Login", "Sign Up"]
 )
 
-# ----------------------------
-# Page Configuration
-# ----------------------------
-st.set_page_config(
-    page_title="YM Bot",
-    page_icon="🤖",
-    layout="wide"
-)
+# ---------------- SIGN UP ----------------
 
-# ----------------------------
-# Custom CSS
-# ----------------------------
-st.markdown("""
-<style>
+if menu == "Sign Up":
 
-.stApp{
-    background: linear-gradient(135deg,#0f172a,#1e293b,#0f766e);
-}
+    st.subheader("Create Account")
 
-.main-title{
-    text-align:center;
-    color:white;
-    font-size:55px;
-    font-weight:bold;
-}
+    username = st.text_input("Username")
 
-.sub-title{
-    text-align:center;
-    color:#d1d5db;
-    font-size:20px;
-}
+    email = st.text_input("Email")
 
-.stChatMessage{
-    border-radius:15px;
-    padding:10px;
-}
+    password = st.text_input(
+        "Password",
+        type="password"
+    )
 
-.stButton>button{
-    width:100%;
-    border-radius:10px;
-}
+    if st.button("Sign Up"):
 
-</style>
-""", unsafe_allow_html=True)
+        if signup(username, email, password):
 
-# ----------------------------
-# Sidebar
-# ----------------------------
+            st.success("Account created successfully!")
 
-with st.sidebar:
+        else:
 
-    st.title("🤖 YM Bot")
+            st.error("Email already exists.")
 
-    st.write("### Your Personal AI Assistant")
+# ---------------- LOGIN ----------------
 
-    st.markdown("---")
+elif menu == "Login":
 
-    st.write("### Features")
+    st.subheader("Login")
 
-    st.write("✅ AI Chat")
+    email = st.text_input("Email")
 
-    st.write("✅ Coding Help")
+    password = st.text_input(
+        "Password",
+        type="password"
+    )
 
-    st.write("✅ Study Assistant")
+    if st.button("Login"):
 
-    st.write("✅ Resume Help")
+        user = login(email, password)
 
-    st.write("✅ General Knowledge")
+        if user:
 
-    st.markdown("---")
+            st.session_state.logged_in = True
 
-    if st.button("🗑️ Clear Chat"):
-        st.session_state.messages = []
+            st.session_state.email = email
+
+            st.session_state.username = user[1]
+
+            st.success("Login Successful!")
+
+        else:
+
+            st.error("Invalid Email or Password")
+
+# ---------------- HOME ----------------
+
+if st.session_state.get("logged_in"):
+
+    st.write(f"## Welcome {st.session_state.username} 👋")
+
+    if st.button("Logout"):
+
+        st.session_state.logged_in = False
+
         st.rerun()
-
-    st.markdown("---")
-
-    st.write("Made with ❤️ by Yoshitha")
-
-# ----------------------------
-# Main Heading
-# ----------------------------
-
-st.markdown(
-"""
-<div class='main-title'>
- YM Bot
-</div>
-
-<div class='sub-title'>
-Your Smart AI Assistant
-</div>
-""",
-unsafe_allow_html=True
-)
-
-st.info("""
- Welcome to YM Bot!
-
-You can ask me anything about:
-
-💻 Programming
-
-📚 Studies
-
-🤖 Artificial Intelligence
-
-📝 Resume
-
-🌍 General Knowledge
-""")
-
-# ----------------------------
-# Chat History
-# ----------------------------
-
-if "messages" not in st.session_state:
-    st.session_state.messages=[]
-
-for message in st.session_state.messages:
-
-    avatar="👤" if message["role"]=="user" else "🤖"
-
-    with st.chat_message(message["role"],avatar=avatar):
-
-        st.write(message["content"])
-
-# ----------------------------
-# Chat Input
-# ----------------------------
-
-prompt=st.chat_input(" Message YM Bot...")
-
-if prompt:
-
-    st.session_state.messages.append(
-        {
-            "role":"user",
-            "content":prompt
-        }
-    )
-
-    with st.chat_message("user",avatar="👤"):
-
-        st.write(prompt)
-
-    with st.spinner(" YM Bot is thinking..."):
-
-        response=client.chat.completions.create(
-
-            model="llama-3.1-8b-instant",
-
-            messages=st.session_state.messages
-
-        )
-
-    reply=response.choices[0].message.content
-
-    st.session_state.messages.append(
-
-        {
-            "role":"assistant",
-            "content":reply
-        }
-
-    )
-
-    with st.chat_message("assistant",avatar="🤖"):
-
-        st.write(reply)
-
-# ----------------------------
-# Footer
-# ----------------------------
-
-st.markdown("---")
-
-st.markdown(
-"""
-<center>
-
-YM Bot | done by Yoshitha
-
-</center>
-""",
-unsafe_allow_html=True
-)
