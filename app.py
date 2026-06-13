@@ -1,5 +1,5 @@
 import streamlit as st
-from auth import signup, login
+from auth_utils import signup, login
 
 st.set_page_config(page_title="YM Bot", page_icon="🤖")
 
