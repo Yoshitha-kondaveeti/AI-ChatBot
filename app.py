@@ -8,14 +8,8 @@ from chat_db import (
 )
 
 def save_message(user_email, role, message):
-    cursor.execute(
-        """
-        INSERT INTO chats(user_email, role, message)
-        VALUES (?, ?, ?)
-        """,
-        (user_email, role, message)
-    )
-    conn.commit()
+    chat_id = create_chat()
+    save_message(chat_id, user_email, role, message)
 
 
 def load_messages(user_email):
