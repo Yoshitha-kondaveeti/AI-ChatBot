@@ -1,5 +1,15 @@
 import streamlit as st
 from auth_utils import signup, login
+from chat_db import save_message, load_messages, clear_messages
+from groq import Groq
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
+client = Groq(
+    api_key=os.getenv("GROQ_API_KEY")
+)
 
 st.set_page_config(page_title="YM Bot", page_icon="🤖")
 
