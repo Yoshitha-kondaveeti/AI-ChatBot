@@ -1,61 +1,65 @@
+python
 import bcrypt
 from database import conn, cursor
 
+# -----------------------------
 # Hash Password
-
+# -----------------------------
 def hash_password(password):
-return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
 
+
+# -----------------------------
 # Check Password
-
+# -----------------------------
 def check_password(password, hashed):
-return bcrypt.checkpw(password.encode("utf-8"), hashed)
+    return bcrypt.checkpw(password.encode("utf-8"), hashed)
 
+
+# -----------------------------
 # Sign Up
-
+# -----------------------------
 def signup(username, email, password):
 
-```
-hashed = hash_password(password)
+    hashed = hash_password(password)
 
-try:
-    cursor.execute(
-        """
-        INSERT INTO users(username, email, password)
-        VALUES (?, ?, ?)
-        """,
-        (username, email, hashed)
-    )
+    try:
+        cursor.execute(
+            """
+            INSERT INTO users(username, email, password)
+            VALUES (?, ?, ?)
+            """,
+            (username, email, hashed)
+        )
 
-    conn.commit()
+        conn.commit()
 
-    return True
+        return True
 
-except Exception:
-    return False
-```
+    except Exception:
+        return False
 
+
+# -----------------------------
 # Login
-
+# -----------------------------
 def login(email, password):
 
+    cursor.execute(
+        """
+        SELECT *
+        FROM users
+        WHERE email = ?
+        """,
+        (email,)
+    )
 
-cursor.execute(
-    """
-    SELECT *
-    FROM users
-    WHERE email = ?
-    """,
-    (email,)
-)
+    user = cursor.fetchone()
 
-user = cursor.fetchone()
+    if user:
 
-if user:
+        if check_password(password, user[3]):
+            return user
 
-    if check_password(password, user[3]):
-
-        return user
-
-return None
+    return None
 
