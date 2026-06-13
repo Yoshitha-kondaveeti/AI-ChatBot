@@ -63,3 +63,19 @@ def delete_chat(chat_id):
     )
 
     conn.commit()
+
+# Get the latest chat ID for a user
+def get_latest_chat(user_email):
+    cursor.execute(
+        """
+        SELECT chat_id
+        FROM chats
+        WHERE user_email = ?
+        ORDER BY id DESC
+        LIMIT 1
+        """,
+        (user_email,)
+    )
+
+    row = cursor.fetchone()
+    return row[0] if row else None
