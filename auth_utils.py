@@ -39,7 +39,7 @@ except Exception:
 
 def login(email, password):
 
-```
+
 cursor.execute(
     """
     SELECT *
@@ -58,4 +58,4 @@ if user:
         return user
 
 return None
-```
+
