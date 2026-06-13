@@ -28,6 +28,19 @@ st.set_page_config(
     page_icon="🤖",
     layout="wide"
 )
+st.markdown("""
+<style>
+
+.stApp {
+    background: linear-gradient(to right, #141E30, #243B55);
+}
+
+h1,h2,h3,p,label {
+    color: white !important;
+}
+
+</style>
+""", unsafe_allow_html=True)
 
 # -----------------------------
 # Session State
@@ -47,9 +60,8 @@ if "chat_id" not in st.session_state:
 
 if not st.session_state.logged_in:
 
-    st.title("🤖 YM Bot")
-
-    st.caption("Your Personal AI Assistant")
+    st.title("🤖 YM Bot AI Assistant")
+    st.caption("Powered by Groq • Fast • Smart • Secure")
 
     menu = st.sidebar.selectbox(
         "Menu",
