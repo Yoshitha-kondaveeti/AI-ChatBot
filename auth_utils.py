@@ -35,4 +35,5 @@ def signup(username, email, password):
 
         return True
 
-    except Exception
+    except Exception:
+        return False
