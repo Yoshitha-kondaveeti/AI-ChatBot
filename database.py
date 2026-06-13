@@ -1,9 +1,12 @@
 import sqlite3
 
+# Connect to SQLite database
 conn = sqlite3.connect("users.db", check_same_thread=False)
 cursor = conn.cursor()
 
-# Users table
+# -------------------------
+# Users Table
+# -------------------------
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -13,7 +16,9 @@ CREATE TABLE IF NOT EXISTS users (
 )
 """)
 
-# Chats table
+# -------------------------
+# Chats Table
+# -------------------------
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS chats (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -24,3 +29,5 @@ CREATE TABLE IF NOT EXISTS chats (
     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
 )
 """)
+
+conn.commit()
