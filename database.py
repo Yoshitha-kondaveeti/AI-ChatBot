@@ -15,11 +15,12 @@ CREATE TABLE IF NOT EXISTS users (
 
 # Chats table
 cursor.execute("""
-CREATE TABLE IF NOT EXISTS chats (
+CREATE TABLE IF NOT EXISTS chats(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_email TEXT NOT NULL,
-    role TEXT NOT NULL,
-    message TEXT NOT NULL,
+    chat_id TEXT,
+    user_email TEXT,
+    role TEXT,
+    message TEXT,
     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
 )
 """)
