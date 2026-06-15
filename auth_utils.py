@@ -41,23 +41,30 @@ def signup(username, email, password):
 def login(email, password):
 
     cursor.execute(
-        """
-        SELECT *
-        FROM users
-        WHERE email = ?
-        """,
+        "SELECT * FROM users WHERE email = ?",
         (email,)
     )
 
     user = cursor.fetchone()
 
-    if user:
+    print("USER:", user)
 
-        if check_password(password, user[3]):
-            return user
+    if not user:
+        print("No user found!")
+        return None
+
+    print("Entered password:", password)
+    print("Stored hash:", user[3])
+    print("Hash type:", type(user[3]))
+
+    result = check_password(password, user[3])
+
+    print("Password match:", result)
+
+    if result:
+        return user
 
     return None
-
 
 # -----------------------------
 # User Account
