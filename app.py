@@ -4,7 +4,15 @@ import streamlit as st
 from dotenv import load_dotenv
 from groq import Groq
 
-from auth_utils import login, signup
+from auth_utils import (
+    change_password,
+    get_first_user_email,
+    get_user_by_email,
+    get_user_summaries,
+    login,
+    signup,
+    update_username,
+)
 from chat_db import create_chat, delete_chat, get_all_chats, load_chat, save_message
 
 try:
@@ -230,6 +238,7 @@ def init_session_state():
         "email": "",
         "username": "",
         "draft_prompt": "",
+        "active_view": "chat",
     }
 
     for key, value in defaults.items():
@@ -242,6 +251,17 @@ def short_title(text, limit=46):
     if len(clean) <= limit:
         return clean
     return clean[: limit - 3] + "..."
+
+
+def is_admin_user(email):
+    admin_email = os.getenv("ADMIN_EMAIL", "").strip().lower()
+    current_email = (email or "").strip().lower()
+
+    if admin_email:
+        return current_email == admin_email
+
+    first_user_email = get_first_user_email()
+    return current_email == (first_user_email or "").strip().lower()
 
 
 def start_new_chat():
@@ -349,6 +369,8 @@ def render_auth_page():
 
 
 def render_sidebar():
+    is_admin = is_admin_user(st.session_state.email)
+
     st.sidebar.title("YM Bot")
     st.sidebar.markdown(
         f"""
@@ -362,10 +384,32 @@ def render_sidebar():
     )
 
     if st.sidebar.button("New chat", type="primary"):
+        st.session_state.active_view = "chat"
         start_new_chat()
         st.rerun()
 
     st.sidebar.divider()
+
+    st.sidebar.markdown("### Workspace")
+    if st.sidebar.button("Chat"):
+        st.session_state.active_view = "chat"
+        st.rerun()
+
+    if st.sidebar.button("Account"):
+        st.session_state.active_view = "account"
+        st.rerun()
+
+    if is_admin and st.sidebar.button("Admin"):
+        st.session_state.active_view = "admin"
+        st.rerun()
+
+    if st.session_state.active_view != "chat":
+        st.sidebar.divider()
+        if st.sidebar.button("Logout"):
+            logout()
+            st.rerun()
+        return
+
     st.sidebar.markdown("### Chat history")
 
     search = st.sidebar.text_input("Search chats", placeholder="Search by message text")
@@ -408,6 +452,119 @@ def render_sidebar():
         st.rerun()
 
 
+def render_admin_page():
+    if not is_admin_user(st.session_state.email):
+        st.session_state.active_view = "chat"
+        st.warning("Admin is only available to the app owner.")
+        render_chat_page()
+        return
+
+    render_sidebar()
+
+    st.title("Admin")
+    st.caption("Private owner dashboard. Normal users cannot see this page.")
+
+    rows = get_user_summaries()
+    query = st.text_input("Search users", placeholder="Search username or email").strip().casefold()
+
+    users = [
+        {
+            "ID": user_id,
+            "Username": username,
+            "Email": email,
+            "Chats": chat_count,
+            "Messages": message_count,
+            "Last active": last_active or "No chats yet",
+        }
+        for user_id, username, email, chat_count, message_count, last_active in rows
+    ]
+
+    if query:
+        users = [
+            user
+            for user in users
+            if query in str(user["Username"]).casefold()
+            or query in str(user["Email"]).casefold()
+        ]
+
+    total_users = len(rows)
+    total_chats = sum(row[3] for row in rows)
+    total_messages = sum(row[4] for row in rows)
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Users", total_users)
+    col2.metric("Chats", total_chats)
+    col3.metric("Messages", total_messages)
+
+    if users:
+        st.subheader("Registered users")
+        st.dataframe(users, use_container_width=True, hide_index=True)
+    else:
+        st.info("No users found.")
+
+
+def render_account_page():
+    render_sidebar()
+
+    st.title("Account")
+    st.caption("Manage your own profile and see your personal activity.")
+
+    user = get_user_by_email(st.session_state.email)
+    chats = get_chat_summaries(st.session_state.email)
+    message_count = sum(chat[2] for chat in chats)
+    last_active = next((chat[3] for chat in chats if chat[3]), "No chats yet")
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Your chats", len(chats))
+    col2.metric("Your messages", message_count)
+    col3.metric("Role", "Admin" if is_admin_user(st.session_state.email) else "User")
+
+    st.markdown('<div class="ym-shell">', unsafe_allow_html=True)
+    st.subheader("Profile")
+
+    if user:
+        st.write(f"**User ID:** {user[0]}")
+        st.write(f"**Email:** {user[2]}")
+        st.write(f"**Last active:** {last_active}")
+
+    new_username = st.text_input(
+        "Display name",
+        value=st.session_state.username,
+        key="account_username",
+    ).strip()
+
+    if st.button("Update display name"):
+        if not new_username:
+            st.error("Display name cannot be empty.")
+        else:
+            update_username(st.session_state.email, new_username)
+            st.session_state.username = new_username
+            st.success("Display name updated.")
+            st.rerun()
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    st.markdown('<div class="ym-shell">', unsafe_allow_html=True)
+    st.subheader("Password")
+    current_password = st.text_input("Current password", type="password")
+    new_password = st.text_input("New password", type="password")
+    confirm_password = st.text_input("Confirm new password", type="password")
+
+    if st.button("Change password"):
+        if not current_password or not new_password or not confirm_password:
+            st.error("Please fill in all password fields.")
+        elif len(new_password) < 6:
+            st.error("New password must be at least 6 characters.")
+        elif new_password != confirm_password:
+            st.error("New passwords do not match.")
+        elif change_password(st.session_state.email, current_password, new_password):
+            st.success("Password changed successfully.")
+        else:
+            st.error("Current password is incorrect.")
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
 def render_prompt_starters():
     st.markdown(
         """
@@ -426,12 +583,17 @@ def render_prompt_starters():
         ("Plan", "Create a simple action plan for: "),
     ]
 
-    cols = st.columns(4)
+    cols = st.columns(5)
     for index, (label, prompt) in enumerate(starters):
         with cols[index]:
             if st.button(label):
                 use_prompt_template(prompt)
                 st.rerun()
+
+    with cols[4]:
+        if st.button("Account"):
+            st.session_state.active_view = "account"
+            st.rerun()
 
 
 def render_chat_page():
@@ -485,7 +647,15 @@ def render_chat_page():
 
 init_session_state()
 
-if st.session_state.logged_in:
+if (
+    st.session_state.logged_in
+    and st.session_state.active_view == "admin"
+    and is_admin_user(st.session_state.email)
+):
+    render_admin_page()
+elif st.session_state.logged_in and st.session_state.active_view == "account":
+    render_account_page()
+elif st.session_state.logged_in:
     render_chat_page()
 else:
     render_auth_page()
