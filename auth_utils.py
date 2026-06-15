@@ -19,9 +19,7 @@ def check_password(password, hashed):
 # Sign Up
 # -----------------------------
 def signup(username, email, password):
-
     hashed = hash_password(password)
-
     try:
         cursor.execute(
             """
@@ -30,12 +28,10 @@ def signup(username, email, password):
             """,
             (username, email, hashed)
         )
-
         conn.commit()
-
         return True
-
-    except Exception:
+    except Exception as e:
+        print("SIGNUP ERROR:", e)
         return False
 
 
