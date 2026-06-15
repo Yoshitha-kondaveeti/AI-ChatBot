@@ -52,6 +52,28 @@ def get_all_chats(user_email):
 
     return cursor.fetchall()
 
+# Get chat history with readable titles
+def get_chat_summaries(user_email):
+    cursor.execute(
+        """
+        SELECT
+            chat_id,
+            COALESCE(
+                MIN(CASE WHEN role = 'user' THEN message END),
+                'New chat'
+            ) AS title,
+            COUNT(*) AS message_count,
+            MAX(timestamp) AS updated_at
+        FROM chats
+        WHERE user_email = ?
+        GROUP BY chat_id
+        ORDER BY MAX(id) DESC
+        """,
+        (user_email,)
+    )
+
+    return cursor.fetchall()
+
 # Delete a chat
 def delete_chat(chat_id):
     cursor.execute(
