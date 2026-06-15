@@ -102,8 +102,8 @@ def send_prompt(prompt):
         st.error("GROQ_API_KEY is missing. Add it to your .env file and restart Streamlit.")
         return
 
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    save_message(st.session_state.chat_id, st.session_state.email, "user", prompt)
+st.session_state.messages.append({"role": "user", "content": prompt})
+save_message(st.session_state.chat_id, st.session_state.email, "user", prompt)
 
     try:
         response = client.chat.completions.create(
