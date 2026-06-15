@@ -41,28 +41,29 @@ def signup(username, email, password):
 def login(email, password):
 
     cursor.execute(
-        "SELECT * FROM users WHERE email = ?",
+        "SELECT * FROM users WHERE email=?",
         (email,)
     )
 
     user = cursor.fetchone()
 
-    print("USER:", user)
+    print("USER =", user)
 
-    if not user:
-        print("No user found!")
-        return None
+    if user:
+        print("Stored password type:", type(user[3]))
+        print("Stored password:", user[3])
 
-    print("Entered password:", password)
-    print("Stored hash:", user[3])
-    print("Hash type:", type(user[3]))
+        try:
+            ok = bcrypt.checkpw(
+                password.encode("utf-8"),
+                user[3]
+            )
+            print("MATCH =", ok)
+        except Exception as e:
+            print("ERROR =", e)
 
-    result = check_password(password, user[3])
-
-    print("Password match:", result)
-
-    if result:
-        return user
+        if ok:
+            return user
 
     return None
 
