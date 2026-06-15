@@ -1,4 +1,3 @@
-
 import bcrypt
 from database import conn, cursor
 
