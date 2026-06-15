@@ -1,265 +1,139 @@
-import streamlit as st
-from auth_utils import signup, login
-from chat_db import (
-    create_chat,
-    save_message,
-    load_chat,
-    get_all_chats,
-    delete_chat
-)
-from groq import Groq
-from dotenv import load_dotenv
-import os
+    if client is None:
+        st.error("GROQ_API_KEY is missing. Add it to your .env file and restart Streamlit.")
+        return
 
-# -----------------------------
-# Load Environment Variables
-# -----------------------------
-load_dotenv()
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    save_message(st.session_state.chat_id, st.session_state.email, "user", prompt)
 
-client = Groq(
-    api_key=os.getenv("GROQ_API_KEY")
-)
+    try:
+        response = client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=st.session_state.messages,
+        )
+        reply = response.choices[0].message.content
+    except Exception as exc:
+        reply = f"Sorry, I could not get a response right now. Error: {exc}"
 
-# -----------------------------
-# Page Config
-# -----------------------------
-st.set_page_config(
-    page_title="YM Bot",
-    page_icon="🤖",
-    layout="wide"
-)
-st.markdown("""
-<style>
+    st.session_state.messages.append({"role": "assistant", "content": reply})
+    save_message(st.session_state.chat_id, st.session_state.email, "assistant", reply)
 
-.stApp {
-    background: linear-gradient(to right, #141E30, #243B55);
-}
 
-h1,h2,h3,p,label {
-    color: white !important;
-}
-
-</style>
-""", unsafe_allow_html=True)
-
-# -----------------------------
-# Session State
-# -----------------------------
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
-if "chat_id" not in st.session_state:
-    st.session_state.chat_id = create_chat()
-
-# ===================================================
-# LOGIN / SIGNUP
-# ===================================================
-
-if not st.session_state.logged_in:
-
+def render_auth_page():
     st.title("🤖 YM Bot AI Assistant")
     st.caption("Powered by Groq • Fast • Smart • Secure")
 
-    menu = st.sidebar.selectbox(
-        "Menu",
-        ["Login", "Sign Up"]
-    )
-
-    # ---------------- SIGN UP ----------------
+    menu = st.sidebar.selectbox("Menu", ["Login", "Sign Up"])
 
     if menu == "Sign Up":
-
         st.subheader("Create Account")
 
-        username = st.text_input("Username")
-
-        email = st.text_input("Email")
-
-        password = st.text_input(
-            "Password",
-            type="password"
-        )
+        username = st.text_input("Username").strip()
+        email = st.text_input("Email").strip().lower()
+        password = st.text_input("Password", type="password")
 
         if st.button("Create Account"):
-
-            if signup(username, email, password):
-
-                st.success("Account Created Successfully!")
-
+            if not username or not email or not password:
+                st.error("Please fill in username, email, and password.")
+            elif signup(username, email, password):
+                st.success("Account created successfully. You can log in now.")
             else:
+                st.error("That email is already registered.")
 
-                st.error("Email already exists!")
-
-    # ---------------- LOGIN ----------------
-
-    elif menu == "Login":
-
+    else:
         st.subheader("Login")
 
-        email = st.text_input("Email")
-
-        password = st.text_input(
-            "Password",
-            type="password"
-        )
+        email = st.text_input("Email").strip().lower()
+        password = st.text_input("Password", type="password")
 
         if st.button("Login"):
-
             user = login(email, password)
 
             if user:
-
                 st.session_state.logged_in = True
-
                 st.session_state.email = email
-
                 st.session_state.username = user[1]
-
-                # Create first chat only if needed
-                if "chat_id" not in st.session_state:
-                    st.session_state.chat_id = create_chat()
-
-                # Load existing chat
-                st.session_state.messages = load_chat(
-                    st.session_state.chat_id
-                )
-
+                start_new_chat()
                 st.rerun()
 
-            else:
+            st.error("Invalid email or password.")
 
-                st.error("Invalid Email or Password")
 
-# ===================================================
-# CHAT PAGE
-# ===================================================
+def render_sidebar():
+    st.sidebar.title("🤖 YM Bot")
+    st.sidebar.markdown(
+        f"""
+        ### 👤 {st.session_state.username}
 
-else:
+        🟢 Online
 
-    # ---------------- Sidebar ----------------
+        📧 {st.session_state.email}
+        """
+    )
+    st.sidebar.divider()
 
-    with st.sidebar:
+    if st.sidebar.button("➕ New Chat"):
+        start_new_chat()
+        st.rerun()
 
-        st.title("🤖 YM Bot")
+    st.sidebar.markdown("### Chat History")
+    chats = get_all_chats(st.session_state.email)
 
-        st.write(f"👤 {st.session_state.username}")
+    if not chats:
+        st.sidebar.caption("No saved chats yet.")
 
-        st.markdown("---")
+    for (chat_id,) in chats:
+        col1, col2 = st.sidebar.columns([4, 1])
 
-        if st.button("➕ New Chat"):
-
-            st.session_state.chat_id = create_chat()
-
-            st.session_state.messages = []
-
-            st.rerun()
-
-        st.markdown("## Chat History")
-
-        chats = get_all_chats(
-            st.session_state.email
-        )
-
-        for chat in chats:
-
-            chat_id = chat[0]
-
-            if st.button(chat_id[:8]):
-
+        with col1:
+            if st.button(chat_id[:8], key=f"open-{chat_id}"):
                 st.session_state.chat_id = chat_id
-
                 st.session_state.messages = load_chat(chat_id)
-
                 st.rerun()
 
-        st.markdown("---")
+        with col2:
+            if st.button("🗑", key=f"delete-{chat_id}", help="Delete chat"):
+                delete_chat(chat_id)
+                if st.session_state.chat_id == chat_id:
+                    start_new_chat()
+                st.rerun()
 
-        if st.button("🚪 Logout"):
+    st.sidebar.divider()
 
-            st.session_state.logged_in = False
+    if st.sidebar.button("🚪 Logout"):
+        logout()
+        st.rerun()
 
-            st.session_state.messages = []
 
-            st.session_state.chat_id = create_chat()
-
-            st.rerun()
+def render_chat_page():
+    render_sidebar()
 
     st.title("🤖 YM Bot")
-
     st.caption("Your Smart AI Assistant")
-          # ---------------------------------
-    # Display Previous Messages
-    # ---------------------------------
 
     for message in st.session_state.messages:
-
         avatar = "👤" if message["role"] == "user" else "🤖"
-
         with st.chat_message(message["role"], avatar=avatar):
             st.markdown(message["content"])
 
-    # ---------------------------------
-    # Chat Input
-    # ---------------------------------
+    if not st.session_state.messages:
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.button("💻 Code")
+        with col2:
+            st.button("📚 AI")
+        with col3:
+            st.button("📝 Resume")
 
     prompt = st.chat_input("💬 Ask YM Bot anything...")
-
     if prompt:
-
-        # -----------------------------
-        # Show User Message
-        # -----------------------------
-
-        st.session_state.messages.append(
-            {
-                "role": "user",
-                "content": prompt
-            }
-        )
-
-        save_message(
-            st.session_state.chat_id,
-            st.session_state.email,
-            "user",
-            prompt
-        )
-
-        with st.chat_message("user", avatar="👤"):
-            st.markdown(prompt)
-
-        # -----------------------------
-        # Get AI Response
-        # -----------------------------
-
         with st.spinner("🤖 YM Bot is thinking..."):
+            send_prompt(prompt)
+        st.rerun()
 
-            response = client.chat.completions.create(
-                model="llama-3.1-8b-instant",
-                messages=st.session_state.messages
-            )
 
-            reply = response.choices[0].message.content
+init_session_state()
 
-        # -----------------------------
-        # Save AI Response
-        # -----------------------------
-
-        st.session_state.messages.append(
-            {
-                "role": "assistant",
-                "content": reply
-            }
-        )
-
-        save_message(
-            st.session_state.chat_id,
-            st.session_state.email,
-            "assistant",
-            reply
-        )
-
-        with st.chat_message("assistant", avatar="🤖"):
-            st.markdown(reply)
+if st.session_state.logged_in:
+    render_chat_page()
+else:
+    render_auth_page()
