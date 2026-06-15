@@ -5,7 +5,23 @@ from dotenv import load_dotenv
 from groq import Groq
 
 from auth_utils import login, signup
-from chat_db import create_chat, delete_chat, get_chat_summaries, load_chat, save_message
+from chat_db import create_chat, delete_chat, get_all_chats, load_chat, save_message
+
+try:
+    from chat_db import get_chat_summaries
+except ImportError:
+    def get_chat_summaries(user_email):
+        summaries = []
+
+        for (chat_id,) in get_all_chats(user_email):
+            messages = load_chat(chat_id)
+            first_user_message = next(
+                (message["content"] for message in messages if message["role"] == "user"),
+                "New chat",
+            )
+            summaries.append((chat_id, first_user_message, len(messages), ""))
+
+        return summaries
 
 
 load_dotenv()
