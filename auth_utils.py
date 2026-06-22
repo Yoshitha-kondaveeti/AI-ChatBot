@@ -1,5 +1,6 @@
 import bcrypt
-from database import conn, cursor
+import sys
+from database import get_connection
 
 # -----------------------------
 # Hash Password
@@ -20,6 +21,8 @@ def check_password(password, hashed):
 # -----------------------------
 def signup(username, email, password):
     hashed = hash_password(password)
+    conn = get_connection()
+    cursor = conn.cursor()
     try:
         cursor.execute(
             """
@@ -31,135 +34,171 @@ def signup(username, email, password):
         conn.commit()
         return True
     except Exception as e:
-        print("SIGNUP ERROR:", e)
+        print(f"Signup database error for email {email}: {e}", file=sys.stderr)
         return False
+    finally:
+        cursor.close()
+        conn.close()
 
 
 # -----------------------------
 # Login
 # -----------------------------
 def login(email, password):
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """
+            SELECT *
+            FROM users
+            WHERE email = ?
+            """,
+            (email,)
+        )
+        user = cursor.fetchone()
+        if user:
+            if check_password(password, user[3]):
+                return user
+        return None
+    except Exception as e:
+        print(f"Login database error for email {email}: {e}", file=sys.stderr)
+        return None
+    finally:
+        cursor.close()
+        conn.close()
 
-    cursor.execute(
-        "SELECT * FROM users WHERE email=?",
-        (email,)
-    )
-
-    user = cursor.fetchone()
-
-    print("USER =", user)
-
-    if user:
-        print("Stored password type:", type(user[3]))
-        print("Stored password:", user[3])
-
-        try:
-            ok = bcrypt.checkpw(
-                password.encode("utf-8"),
-                user[3]
-            )
-            print("MATCH =", ok)
-        except Exception as e:
-            print("ERROR =", e)
-
-        if ok:
-            return user
-
-    return None
 
 # -----------------------------
 # User Account
 # -----------------------------
 def get_user_by_email(email):
-    cursor.execute(
-        """
-        SELECT id, username, email
-        FROM users
-        WHERE email = ?
-        """,
-        (email,)
-    )
-
-    return cursor.fetchone()
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """
+            SELECT id, username, email
+            FROM users
+            WHERE email = ?
+            """,
+            (email,)
+        )
+        return cursor.fetchone()
+    except Exception as e:
+        print(f"Error fetching user by email {email}: {e}", file=sys.stderr)
+        return None
+    finally:
+        cursor.close()
+        conn.close()
 
 
 def update_username(email, username):
-    cursor.execute(
-        """
-        UPDATE users
-        SET username = ?
-        WHERE email = ?
-        """,
-        (username, email)
-    )
-
-    conn.commit()
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """
+            UPDATE users
+            SET username = ?
+            WHERE email = ?
+            """,
+            (username, email)
+        )
+        conn.commit()
+    except Exception as e:
+        print(f"Error updating username for {email}: {e}", file=sys.stderr)
+    finally:
+        cursor.close()
+        conn.close()
 
 
 def change_password(email, current_password, new_password):
-    cursor.execute(
-        """
-        SELECT password
-        FROM users
-        WHERE email = ?
-        """,
-        (email,)
-    )
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """
+            SELECT password
+            FROM users
+            WHERE email = ?
+            """,
+            (email,)
+        )
+        row = cursor.fetchone()
+        if not row or not check_password(current_password, row[0]):
+            return False
 
-    row = cursor.fetchone()
-    if not row or not check_password(current_password, row[0]):
+        cursor.execute(
+            """
+            UPDATE users
+            SET password = ?
+            WHERE email = ?
+            """,
+            (hash_password(new_password), email)
+        )
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"Error changing password for {email}: {e}", file=sys.stderr)
         return False
-
-    cursor.execute(
-        """
-        UPDATE users
-        SET password = ?
-        WHERE email = ?
-        """,
-        (hash_password(new_password), email)
-    )
-
-    conn.commit()
-    return True
+    finally:
+        cursor.close()
+        conn.close()
 
 
 # -----------------------------
 # User Summaries
 # -----------------------------
 def get_user_summaries():
-    cursor.execute(
-        """
-        SELECT
-            users.id,
-            users.username,
-            users.email,
-            COUNT(DISTINCT chats.chat_id) AS chat_count,
-            COUNT(chats.id) AS message_count,
-            MAX(chats.timestamp) AS last_active
-        FROM users
-        LEFT JOIN chats
-            ON chats.user_email = users.email
-        GROUP BY users.id, users.username, users.email
-        ORDER BY users.id DESC
-        """
-    )
-
-    return cursor.fetchall()
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """
+            SELECT
+                users.id,
+                users.username,
+                users.email,
+                COUNT(DISTINCT chats.chat_id) AS chat_count,
+                COUNT(chats.id) AS message_count,
+                MAX(chats.timestamp) AS last_active
+            FROM users
+            LEFT JOIN chats
+                ON chats.user_email = users.email
+            GROUP BY users.id, users.username, users.email
+            ORDER BY users.id DESC
+            """
+        )
+        return cursor.fetchall()
+    except Exception as e:
+        print(f"Error fetching user summaries: {e}", file=sys.stderr)
+        return []
+    finally:
+        cursor.close()
+        conn.close()
 
 
 # -----------------------------
 # App Owner
 # -----------------------------
 def get_first_user_email():
-    cursor.execute(
-        """
-        SELECT email
-        FROM users
-        ORDER BY id ASC
-        LIMIT 1
-        """
-    )
-
-    row = cursor.fetchone()
-    return row[0] if row else None
-
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """
+            SELECT email
+            FROM users
+            ORDER BY id ASC
+            LIMIT 1
+            """
+        )
+        row = cursor.fetchone()
+        return row[0] if row else None
+    except Exception as e:
+        print(f"Error getting first user email: {e}", file=sys.stderr)
+        return None
+    finally:
+        cursor.close()
+        conn.close()
