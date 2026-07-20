@@ -1,7 +1,11 @@
 import os
 
 import streamlit as st
-from dotenv import load_dotenv
+try:
+    from dotenv import load_dotenv
+except ImportError:
+    def load_dotenv(*args, **kwargs):
+        return False
 from groq import Groq
 
 from auth_utils import (
@@ -10,8 +14,10 @@ from auth_utils import (
     get_user_by_email,
     get_user_summaries,
     login,
+    reset_password,
     signup,
     update_username,
+    user_exists,
 )
 from chat_db import create_chat, delete_chat, get_all_chats, load_chat, save_message
 
@@ -304,6 +310,13 @@ def send_prompt(prompt):
     st.session_state.draft_prompt = ""
 
 
+def get_reset_code():
+    return (
+        os.getenv("RESET_CODE", "").strip()
+        or os.getenv("ADMIN_EMAIL_PASSWORD", "").strip()
+    )
+
+
 def render_auth_page():
     left, right = st.columns([1.1, .9], gap="large")
 
@@ -332,7 +345,9 @@ def render_auth_page():
     with right:
         st.markdown('<div class="ym-shell">', unsafe_allow_html=True)
         st.subheader("Welcome")
-        login_tab, signup_tab = st.tabs(["Login", "Create account"])
+        login_tab, signup_tab, forgot_tab = st.tabs(
+            ["Login", "Create account", "Forgot password"]
+        )
 
         with login_tab:
             email = st.text_input("Email", key="login_email").strip().lower()
@@ -365,6 +380,38 @@ def render_auth_page():
                 else:
                     st.error("That email is already registered.")
 
+        with forgot_tab:
+            st.caption("Password reset requires the private reset code from the app owner.")
+
+            reset_email = st.text_input("Email", key="forgot_email").strip().lower()
+            reset_code = st.text_input("Reset code", type="password", key="forgot_code")
+            new_password = st.text_input("New password", type="password", key="forgot_new_password")
+            confirm_password = st.text_input(
+                "Confirm new password",
+                type="password",
+                key="forgot_confirm_password",
+            )
+
+            if st.button("Reset password", key="forgot_reset_password"):
+                expected_code = get_reset_code()
+
+                if not expected_code:
+                    st.error("Reset is not configured. Add RESET_CODE to your .env file.")
+                elif not reset_email or not reset_code or not new_password or not confirm_password:
+                    st.error("Please fill in every field.")
+                elif reset_code != expected_code:
+                    st.error("Reset code is incorrect.")
+                elif not user_exists(reset_email):
+                    st.error("No account found with that email.")
+                elif len(new_password) < 6:
+                    st.error("Password must be at least 6 characters.")
+                elif new_password != confirm_password:
+                    st.error("Passwords do not match.")
+                elif reset_password(reset_email, new_password):
+                    st.success("Password reset successfully. You can log in now.")
+                else:
+                    st.error("Could not reset password.")
+
         st.markdown("</div>", unsafe_allow_html=True)
 
 
@@ -383,7 +430,7 @@ def render_sidebar():
         unsafe_allow_html=True,
     )
 
-    if st.sidebar.button("New chat", type="primary"):
+    if st.sidebar.button("New chat", type="primary", key="sidebar_new_chat"):
         st.session_state.active_view = "chat"
         start_new_chat()
         st.rerun()
@@ -391,21 +438,21 @@ def render_sidebar():
     st.sidebar.divider()
 
     st.sidebar.markdown("### Workspace")
-    if st.sidebar.button("Chat"):
+    if st.sidebar.button("Chat", key="sidebar_chat_view"):
         st.session_state.active_view = "chat"
         st.rerun()
 
-    if st.sidebar.button("Account"):
+    if st.sidebar.button("Account", key="sidebar_account_view"):
         st.session_state.active_view = "account"
         st.rerun()
 
-    if is_admin and st.sidebar.button("Admin"):
+    if is_admin and st.sidebar.button("Admin", key="sidebar_admin_view"):
         st.session_state.active_view = "admin"
         st.rerun()
 
     if st.session_state.active_view != "chat":
         st.sidebar.divider()
-        if st.sidebar.button("Logout"):
+        if st.sidebar.button("Logout", key="sidebar_logout_non_chat"):
             logout()
             st.rerun()
         return
@@ -447,7 +494,7 @@ def render_sidebar():
 
     st.sidebar.divider()
 
-    if st.sidebar.button("Logout"):
+    if st.sidebar.button("Logout", key="sidebar_logout_chat"):
         logout()
         st.rerun()
 
@@ -533,14 +580,16 @@ def render_account_page():
         key="account_username",
     ).strip()
 
-    if st.button("Update display name"):
+    if st.button("Update display name", key="account_update_name"):
         if not new_username:
             st.error("Display name cannot be empty.")
         else:
-            update_username(st.session_state.email, new_username)
-            st.session_state.username = new_username
-            st.success("Display name updated.")
-            st.rerun()
+            if update_username(st.session_state.email, new_username):
+                st.session_state.username = new_username
+                st.success("Display name updated.")
+                st.rerun()
+            else:
+                st.error("Could not update display name.")
 
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -550,7 +599,7 @@ def render_account_page():
     new_password = st.text_input("New password", type="password")
     confirm_password = st.text_input("Confirm new password", type="password")
 
-    if st.button("Change password"):
+    if st.button("Change password", key="account_change_password"):
         if not current_password or not new_password or not confirm_password:
             st.error("Please fill in all password fields.")
         elif len(new_password) < 6:
@@ -586,12 +635,12 @@ def render_prompt_starters():
     cols = st.columns(5)
     for index, (label, prompt) in enumerate(starters):
         with cols[index]:
-            if st.button(label):
+            if st.button(label, key=f"starter_{index}"):
                 use_prompt_template(prompt)
                 st.rerun()
 
     with cols[4]:
-        if st.button("Account"):
+        if st.button("Account", key="starter_account"):
             st.session_state.active_view = "account"
             st.rerun()
 
@@ -605,7 +654,7 @@ def render_chat_page():
         st.caption("Ask, save, search, and continue your AI conversations.")
 
     with top_right:
-        if st.button("Clear current draft"):
+        if st.button("Clear current draft", key="clear_current_draft"):
             st.session_state.draft_prompt = ""
             st.rerun()
 
@@ -629,7 +678,7 @@ def render_chat_page():
         st.caption("Tip: use the sidebar search to find old conversations by their first message.")
 
     with col2:
-        if st.button("Send", type="primary"):
+        if st.button("Send", type="primary", key="send_message"):
             prompt = draft.strip()
             if prompt:
                 with st.spinner("YM Bot is thinking..."):
