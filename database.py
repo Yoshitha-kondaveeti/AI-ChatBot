@@ -1,15 +1,17 @@
 import sqlite3
 import os
 
-# Resolve the absolute path to users.db relative to this file's location
 DATABASE_PATH = os.path.join(os.path.dirname(__file__), "users.db")
 
+
 def get_connection():
-    """Returns a new SQLite connection with WAL mode enabled for thread safety."""
+    """Return a configured SQLite connection for the app database."""
     conn = sqlite3.connect(DATABASE_PATH, check_same_thread=False)
-    # Enable Write-Ahead Logging (WAL) for concurrent reads/writes
-    conn.execute("PRAGMA journal_mode=WAL;")
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA foreign_keys=ON")
+    conn.execute("PRAGMA busy_timeout=5000")
     return conn
+
 
 # -------------------------
 # Database Initialization
@@ -40,9 +42,24 @@ def init_db():
     )
     """)
 
+    cursor.execute("""
+    CREATE INDEX IF NOT EXISTS idx_users_email
+    ON users(email)
+    """)
+
+    cursor.execute("""
+    CREATE INDEX IF NOT EXISTS idx_chats_user_email
+    ON chats(user_email)
+    """)
+
+    cursor.execute("""
+    CREATE INDEX IF NOT EXISTS idx_chats_chat_id
+    ON chats(chat_id)
+    """)
+
     conn.commit()
     cursor.close()
     conn.close()
 
-# Initialize tables on import
+
 init_db()
