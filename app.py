@@ -21,11 +21,35 @@ from auth_utils import (
 try:
     from auth_utils import reset_password, user_exists
 except ImportError:
+    from auth_utils import hash_password
+    from database import get_connection
+
     def user_exists(email):
         return get_user_by_email(email) is not None
 
     def reset_password(email, new_password):
-        return False
+        email = (email or "").strip().lower()
+
+        if not email or not new_password:
+            return False
+
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        try:
+            cursor.execute(
+                """
+                UPDATE users
+                SET password = ?
+                WHERE email = ?
+                """,
+                (hash_password(new_password), email),
+            )
+            conn.commit()
+            return cursor.rowcount > 0
+        finally:
+            cursor.close()
+            conn.close()
 from chat_db import create_chat, delete_chat, get_all_chats, load_chat, save_message
 
 try:
