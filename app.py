@@ -10,6 +10,7 @@ from groq import Groq
 
 from auth_utils import (
     change_password,
+    ensure_user,
     get_first_user_email,
     get_user_by_email,
     get_user_summaries,
@@ -70,6 +71,29 @@ except ImportError:
 
 
 load_dotenv()
+
+
+def get_config_value(name):
+    value = os.getenv(name, "").strip()
+
+    if value:
+        return value
+
+    try:
+        return str(st.secrets.get(name, "")).strip()
+    except Exception:
+        return ""
+
+
+def sync_admin_account():
+    admin_email = get_config_value("ADMIN_EMAIL")
+    admin_password = get_config_value("ADMIN_EMAIL_PASSWORD")
+
+    if admin_email and admin_password:
+        ensure_user("Admin", admin_email, admin_password)
+
+
+sync_admin_account()
 
 
 def get_groq_client():
@@ -291,7 +315,7 @@ def short_title(text, limit=46):
 
 
 def is_admin_user(email):
-    admin_email = os.getenv("ADMIN_EMAIL", "").strip().lower()
+    admin_email = get_config_value("ADMIN_EMAIL").lower()
     current_email = (email or "").strip().lower()
 
     if admin_email:
@@ -342,16 +366,7 @@ def send_prompt(prompt):
 
 
 def get_reset_code():
-    reset_code = os.getenv("RESET_CODE", "").strip()
-    fallback_code = os.getenv("ADMIN_EMAIL_PASSWORD", "").strip()
-
-    try:
-        reset_code = reset_code or str(st.secrets.get("RESET_CODE", "")).strip()
-        fallback_code = fallback_code or str(st.secrets.get("ADMIN_EMAIL_PASSWORD", "")).strip()
-    except Exception:
-        pass
-
-    return reset_code or fallback_code
+    return get_config_value("RESET_CODE") or get_config_value("ADMIN_EMAIL_PASSWORD")
 
 
 def render_auth_page():
