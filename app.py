@@ -14,11 +14,18 @@ from auth_utils import (
     get_user_by_email,
     get_user_summaries,
     login,
-    reset_password,
     signup,
     update_username,
-    user_exists,
 )
+
+try:
+    from auth_utils import reset_password, user_exists
+except ImportError:
+    def user_exists(email):
+        return get_user_by_email(email) is not None
+
+    def reset_password(email, new_password):
+        return False
 from chat_db import create_chat, delete_chat, get_all_chats, load_chat, save_message
 
 try:
@@ -311,10 +318,16 @@ def send_prompt(prompt):
 
 
 def get_reset_code():
-    return (
-        os.getenv("RESET_CODE", "").strip()
-        or os.getenv("ADMIN_EMAIL_PASSWORD", "").strip()
-    )
+    reset_code = os.getenv("RESET_CODE", "").strip()
+    fallback_code = os.getenv("ADMIN_EMAIL_PASSWORD", "").strip()
+
+    try:
+        reset_code = reset_code or str(st.secrets.get("RESET_CODE", "")).strip()
+        fallback_code = fallback_code or str(st.secrets.get("ADMIN_EMAIL_PASSWORD", "")).strip()
+    except Exception:
+        pass
+
+    return reset_code or fallback_code
 
 
 def render_auth_page():
