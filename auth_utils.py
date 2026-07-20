@@ -207,6 +207,55 @@ def reset_password(email, new_password):
         conn.close()
 
 
+def ensure_user(username, email, password):
+    username = (username or "").strip()
+    email = normalize_email(email)
+
+    if not username or not email or not password:
+        return False
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute(
+            """
+            SELECT id
+            FROM users
+            WHERE email = ?
+            """,
+            (email,),
+        )
+        row = cursor.fetchone()
+
+        if row:
+            cursor.execute(
+                """
+                UPDATE users
+                SET username = ?, password = ?
+                WHERE email = ?
+                """,
+                (username, hash_password(password), email),
+            )
+        else:
+            cursor.execute(
+                """
+                INSERT INTO users(username, email, password)
+                VALUES (?, ?, ?)
+                """,
+                (username, email, hash_password(password)),
+            )
+
+        conn.commit()
+        return True
+    except Exception as exc:
+        print(f"Error ensuring user {email}: {exc}", file=sys.stderr)
+        return False
+    finally:
+        cursor.close()
+        conn.close()
+
+
 def get_user_summaries():
     conn = get_connection()
     cursor = conn.cursor()
